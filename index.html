@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MongoWeb Studio - MongoDB Web Manager</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        mongo: {
+                            50: '#f2fbf5',
+                            100: '#e1f7e7',
+                            400: '#10b981',
+                            500: '#00ed64', // Official Mongo Green
+                            600: '#00c853',
+                            800: '#023430', // Mongo Dark Green
+                            900: '#001e2b', // Mongo Dark Canvas
+                            950: '#00141e'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome & Lucide Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js para Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom Scrollbar for Code & Trees */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #00141e; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        .tree-line { border-left: 1px dashed rgba(255, 255, 255, 0.15); }
+    </style>
+</head>
+<body class="bg-mongo-900 text-slate-200 font-sans h-full overflow-hidden flex flex-col antialiased">
+
+    <!-- Top Header Navigation -->
+    <header class="h-14 bg-mongo-950 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 select-none">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-mongo-500/10 text-mongo-500 border border-mongo-500/30">
+                <i class="fa-solid fa-leaf text-lg"></i>
+            </div>
+            <span class="font-bold text-lg tracking-wide text-white">MongoWeb <span class="text-mongo-500 font-mono text-xs px-2 py-0.5 rounded bg-mongo-500/10 border border-mongo-500/20">v2.4 Clean Edition</span></span>
+        </div>
+
+        <!-- Connection Indicator & Quick Clear -->
+        <div class="flex items-center gap-4">
+            <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span id="activeConnectionURI">mongodb://localhost:27017</span>
+            </div>
+
+            <button onclick="openConnectionModal()" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-network-wired"></i> Conexões
+            </button>
+            <button onclick="clearAllData()" title="Limpar todos os dados" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 border border-slate-700 rounded-lg transition flex items-center gap-1">
+                <i class="fa-solid fa-trash-can"></i> Limpar Tudo
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- Sidebar: Databases & Collections Tree -->
+        <aside class="w-64 bg-mongo-950 border-r border-slate-800 flex flex-col shrink-0">
+            <!-- Sidebar Header -->
+            <div class="p-3 border-b border-slate-800/80 flex justify-between items-center">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Navegador</span>
+                <button onclick="openCreateDBModal()" class="text-xs bg-mongo-500/10 border border-mongo-500/30 px-2 py-1 rounded text-mongo-400 hover:text-mongo-300 font-medium flex items-center gap-1 transition">
+                    <i class="fa-solid fa-plus"></i> Novo DB
+                </button>
+            </div>
+
+            <!-- Database & Collections List Tree -->
+            <div id="dbSidebarTree" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Dynamically populated via JS -->
+            </div>
+
+            <!-- Quick Metrics Footer -->
+            <div class="p-3 border-t border-slate-800/80 bg-mongo-900/50 text-xs space-y-1 text-slate-400">
+                <div class="flex justify-between"><span>Tamanho Total:</span> <strong id="sidebarTotalSize" class="text-slate-200">0 KB</strong></div>
+                <div class="flex justify-between"><span>Coleções Total:</span> <strong id="sidebarTotalCollections" class="text-slate-200">0</strong></div>
+            </div>
+        </aside>
+
+        <!-- Central Workspace -->
+        <main class="flex-1 flex flex-col bg-mongo-900 overflow-hidden">
+            
+            <!-- Workspace Navigation Tabs -->
+            <div class="bg-mongo-950/80 border-b border-slate-800 px-4 flex items-center justify-between h-11 shrink-0">
+                <div class="flex space-x-1" id="mainTabs">
+                    <button id="tabBtn-dashboard" onclick="switchMainTab('dashboard')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-mongo-500 text-mongo-500 bg-mongo-900 transition flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie"></i> Dashboard Geral
+                    </button>
+                    <button id="tabBtn-documents" onclick="switchMainTab('documents')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2">
+                        <i class="fa-solid fa-table-cells"></i> Documentos & CRUD
+                    </button>
+                    <button id="tabBtn-schema" onclick="switchMainTab('schema')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project"></i> Schema & Tipos
+                    </button>
+                    <button id="tabBtn-aggregation" onclick="switchMainTab('aggregation')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2">
+                        <i class="fa-solid fa-filter"></i> Aggregation Builder
+                    </button>
+                </div>
+
+                <!-- Active Breadcrumb Details -->
+                <div id="activeContextBreadcrumb" class="text-xs font-mono text-slate-400">
+                    <span class="text-mongo-500 font-semibold" id="bcDB">Nenhum</span> / <span id="bcColl" class="text-slate-200">Nenhum</span>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-hidden relative">
+
+                <!-- 1. DASHBOARD TAB VIEW -->
+                <div id="tabContent-dashboard" class="absolute inset-0 p-6 overflow-y-auto space-y-6">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h1 class="text-2xl font-bold text-white">Dashboard do Servidor</h1>
+                            <p class="text-slate-400 text-sm">Estatísticas do nó ativo MongoDB & Armazenamento</p>
+                        </div>
+                        <button onclick="refreshDashboard()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg border border-slate-700 flex items-center gap-2">
+                            <i class="fa-solid fa-rotate"></i> Atualizar
+                        </button>
+                    </div>
+
+                    <!-- Metrics Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-mongo-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4">
+                            <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg text-xl">
+                                <i class="fa-solid fa-database"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 font-medium">Bancos de Dados</p>
+                                <h3 id="dashDbCount" class="text-xl font-bold text-white">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-mongo-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4">
+                            <div class="p-3 bg-blue-500/10 text-blue-400 rounded-lg text-xl">
+                                <i class="fa-solid fa-folder-tree"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 font-medium">Coleções Totais</p>
+                                <h3 id="dashCollCount" class="text-xl font-bold text-white">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-mongo-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4">
+                            <div class="p-3 bg-purple-500/10 text-purple-400 rounded-lg text-xl">
+                                <i class="fa-solid fa-file-lines"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 font-medium">Total de Documentos</p>
+                                <h3 id="dashDocCount" class="text-xl font-bold text-white">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-mongo-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4">
+                            <div class="p-3 bg-amber-500/10 text-amber-400 rounded-lg text-xl">
+                                <i class="fa-solid fa-hard-drive"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 font-medium">Storage Alocado</p>
+                                <h3 id="dashStorageSize" class="text-xl font-bold text-white">0 KB</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-mongo-950 p-5 rounded-xl border border-slate-800">
+                            <h3 class="text-sm font-semibold text-slate-200 mb-4">Uso de Memória por Banco de Dados (KB)</h3>
+                            <div class="h-64">
+                                <canvas id="chartStorage"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-mongo-950 p-5 rounded-xl border border-slate-800">
+                            <h3 class="text-sm font-semibold text-slate-200 mb-4">Distribuição de Documentos</h3>
+                            <div class="h-64">
+                                <canvas id="chartDocs"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. DOCUMENTS & CRUD TAB VIEW -->
+                <div id="tabContent-documents" class="absolute inset-0 flex flex-col hidden">
+                    
+                    <!-- Mongo Query Bar (Filter, Sort, Project, Pagination) -->
+                    <div class="p-3 bg-mongo-950 border-b border-slate-800 space-y-2">
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 bg-mongo-900 border border-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-2 focus-within:border-mongo-500 transition">
+                                <span class="text-xs font-mono font-bold text-mongo-500">FILTER</span>
+                                <input type="text" id="queryFilterInput" placeholder='{ "status": "active" }' value="{}" class="w-full bg-transparent text-xs font-mono text-slate-100 focus:outline-none">
+                            </div>
+                            <button onclick="toggleQueryOptions()" id="btnToggleOptions" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+                                Opções <i class="fa-solid fa-sliders ml-1"></i>
+                            </button>
+                            <button onclick="executeFindQuery()" class="px-4 py-1.5 text-xs font-medium bg-mongo-600 hover:bg-mongo-500 text-mongo-950 rounded-lg transition font-bold flex items-center gap-1.5">
+                                <i class="fa-solid fa-play"></i> Buscar
+                            </button>
+                        </div>
+
+                        <!-- Expanded Query Options (Sort, Project) -->
+                        <div id="queryOptionsPanel" class="hidden grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+                            <div class="bg-mongo-900 border border-slate-800 rounded-lg px-3 py-1 flex items-center gap-2">
+                                <span class="text-[10px] font-mono font-bold text-amber-400">PROJECT</span>
+                                <input type="text" id="queryProjectInput" placeholder='{ "name": 1, "email": 1 }' class="w-full bg-transparent text-xs font-mono text-slate-100 focus:outline-none">
+                            </div>
+                            <div class="bg-mongo-900 border border-slate-800 rounded-lg px-3 py-1 flex items-center gap-2">
+                                <span class="text-[10px] font-mono font-bold text-blue-400">SORT</span>
+                                <input type="text" id="querySortInput" placeholder='{ "createdAt": -1 }' class="w-full bg-transparent text-xs font-mono text-slate-100 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar Actions & View Mode Toggles -->
+                    <div class="px-4 py-2 bg-mongo-900 border-b border-slate-800/80 flex justify-between items-center text-xs">
+                        <div class="flex items-center gap-2">
+                            <!-- View Switcher -->
+                            <div class="bg-mongo-950 p-1 rounded-lg border border-slate-800 flex gap-1">
+                                <button onclick="setDocumentViewMode('tree')" id="viewBtn-tree" class="px-2.5 py-1 rounded bg-slate-800 text-slate-100 font-medium">
+                                    <i class="fa-solid fa-folder-tree mr-1"></i> Tree
+                                </button>
+                                <button onclick="setDocumentViewMode('json')" id="viewBtn-json" class="px-2.5 py-1 rounded text-slate-400 hover:text-slate-200">
+                                    <i class="fa-solid fa-code mr-1"></i> JSON
+                                </button>
+                                <button onclick="setDocumentViewMode('table')" id="viewBtn-table" class="px-2.5 py-1 rounded text-slate-400 hover:text-slate-200">
+                                    <i class="fa-solid fa-table mr-1"></i> Table
+                                </button>
+                            </div>
+
+                            <span class="text-slate-500">|</span>
+
+                            <button onclick="openInsertDocumentModal()" class="px-3 py-1.5 bg-mongo-600/20 hover:bg-mongo-600/30 text-mongo-400 border border-mongo-500/30 rounded-lg transition font-medium flex items-center gap-1.5">
+                                <i class="fa-solid fa-plus"></i> Inserir Documento
+                            </button>
+                            <button onclick="openExportModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-export"></i> Exportar
+                            </button>
+                            <button onclick="openImportModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-import"></i> Importar
+                            </button>
+                        </div>
+
+                        <!-- Pagination Control -->
+                        <div class="flex items-center gap-3">
+                            <span id="queryResultsCount" class="text-slate-400 font-mono">Exibindo 0 de 0</span>
+                            <select id="itemsPerPageSelect" onchange="changeItemsPerPage(this.value)" class="bg-mongo-950 border border-slate-800 text-slate-300 rounded px-2 py-1 focus:outline-none">
+                                <option value="10">10 por pág.</option>
+                                <option value="25" selected>25 por pág.</option>
+                                <option value="50">50 por pág.</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Documents Presentation Container -->
+                    <div id="documentsContainer" class="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-xs">
+                        <!-- Content rendered dynamically: Tree, JSON, or Table -->
+                    </div>
+                </div>
+
+                <!-- 3. SCHEMA VIEW TAB VIEW -->
+                <div id="tabContent-schema" class="absolute inset-0 p-6 overflow-y-auto hidden">
+                    <div class="max-w-4xl mx-auto space-y-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-diagram-project text-mongo-500"></i> Análise de Schema & Tipos
+                            </h2>
+                            <p class="text-xs text-slate-400">Inspeção amostral da estrutura e tipos de BSON da coleção atual.</p>
+                        </div>
+
+                        <div id="schemaAnalysisContainer" class="space-y-4">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. AGGREGATION BUILDER TAB VIEW -->
+                <div id="tabContent-aggregation" class="absolute inset-0 flex flex-col p-4 hidden">
+                    <div class="flex justify-between items-center mb-3">
+                        <div>
+                            <h2 class="text-lg font-bold text-white">Aggregation Pipeline Builder</h2>
+                            <p class="text-xs text-slate-400">Construa e teste estágios de agregação em tempo real</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="addAggregationStage()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg border border-slate-700 text-mongo-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-plus"></i> Adicionar Estágio
+                            </button>
+                            <button onclick="runAggregationPipeline()" class="px-4 py-1.5 bg-mongo-600 hover:bg-mongo-500 text-mongo-950 text-xs font-bold rounded-lg transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-play"></i> Executar Pipeline
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
+                        <!-- Stages List Builder Left Column -->
+                        <div id="aggregationStagesList" class="overflow-y-auto space-y-3 pr-2">
+                            <!-- Stages dynamically added here -->
+                        </div>
+
+                        <!-- Results Output Right Column -->
+                        <div class="bg-mongo-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+                            <div class="p-3 border-b border-slate-800 bg-mongo-900/50 flex justify-between items-center">
+                                <span class="text-xs font-semibold text-slate-300">Resultado da Agregação</span>
+                                <span id="aggregationResultCount" class="text-[10px] text-slate-500 font-mono">0 resultados</span>
+                            </div>
+                            <div class="flex-1 p-3 overflow-y-auto font-mono text-xs">
+                                <pre id="aggregationResultPre" class="text-emerald-400">// Execute a pipeline para ver os resultados aqui...</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL 1: Insert / Edit Document Modal -->
+    <div id="documentEditorModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-mongo-950 border border-slate-800 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="px-5 py-3 border-b border-slate-800 flex justify-between items-center">
+                <h3 id="docModalTitle" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-pen text-mongo-500"></i> Editar Documento
+                </h3>
+                <button onclick="closeModal('documentEditorModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 flex-1 flex flex-col space-y-3 overflow-hidden">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Insira ou edite o documento BSON em formato JSON válido:</span>
+                    <button onclick="beautifyDocumentInput()" class="text-mongo-400 hover:text-mongo-300 font-mono"><i class="fa-solid fa-wand-magic-sparkles"></i> Formatar JSON</button>
+                </div>
+                <textarea id="documentJsonInput" class="flex-1 w-full bg-mongo-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-200 focus:outline-none focus:border-mongo-500 resize-none h-64"></textarea>
+                <div id="documentJsonError" class="text-xs text-rose-400 font-mono hidden"></div>
+            </div>
+            <div class="px-5 py-3 border-t border-slate-800 bg-mongo-900/40 flex justify-end gap-2">
+                <button onclick="closeModal('documentEditorModal')" class="px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded-lg border border-slate-700">Cancelar</button>
+                <button onclick="saveDocumentFromModal()" class="px-4 py-1.5 text-xs font-bold bg-mongo-600 hover:bg-mongo-500 text-mongo-950 rounded-lg">Salvar Documento</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Export Data Modal -->
+    <div id="exportModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-mongo-950 border border-slate-800 rounded-xl w-full max-w-md p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-export text-mongo-500"></i> Exportar Dados
+                </h3>
+                <button onclick="closeModal('exportModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Escopo de Exportação:</label>
+                    <select id="exportScope" class="w-full bg-mongo-900 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none">
+                        <option value="filtered">Resultado do Filtro Atual (Filtrado)</option>
+                        <option value="full">Coleção Completa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Formato do Arquivo:</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="border border-slate-800 rounded-lg p-2 flex items-center gap-2 cursor-pointer hover:border-mongo-500 bg-mongo-900">
+                            <input type="radio" name="exportFormat" value="json" checked class="accent-mongo-500"> JSON
+                        </label>
+                        <label class="border border-slate-800 rounded-lg p-2 flex items-center gap-2 cursor-pointer hover:border-mongo-500 bg-mongo-900">
+                            <input type="radio" name="exportFormat" value="jsonl" class="accent-mongo-500"> JSON Lines
+                        </label>
+                        <label class="border border-slate-800 rounded-lg p-2 flex items-center gap-2 cursor-pointer hover:border-mongo-500 bg-mongo-900">
+                            <input type="radio" name="exportFormat" value="csv" class="accent-mongo-500"> CSV
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeModal('exportModal')" class="px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded-lg">Cancelar</button>
+                <button onclick="triggerExportDownload()" class="px-4 py-1.5 text-xs font-bold bg-mongo-600 hover:bg-mongo-500 text-mongo-950 rounded-lg">Download Arquivo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Import Data Modal -->
+    <div id="importModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-mongo-950 border border-slate-800 rounded-xl w-full max-w-md p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-import text-mongo-500"></i> Importar Documentos
+                </h3>
+                <button onclick="closeModal('importModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-3 text-xs">
+                <p class="text-slate-400">Selecione um arquivo JSON contendo uma array de objetos ou objeto único:</p>
+                <input type="file" id="importFileInput" accept=".json,.csv" class="w-full text-slate-300 bg-mongo-900 border border-slate-800 rounded-lg p-2 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:bg-slate-800 file:text-slate-200">
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeModal('importModal')" class="px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded-lg">Cancelar</button>
+                <button onclick="processFileImport()" class="px-4 py-1.5 text-xs font-bold bg-mongo-600 hover:bg-mongo-500 text-mongo-950 rounded-lg">Importar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: Create DB / Collection Modal -->
+    <div id="createDbModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-mongo-950 border border-slate-800 rounded-xl w-full max-w-md p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-database text-mongo-500"></i> Criar Novo Banco / Coleção
+                </h3>
+                <button onclick="closeModal('createDbModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Nome do Banco de Dados:</label>
+                    <input type="text" id="newDbNameInput" placeholder="ex: meu_banco" class="w-full bg-mongo-900 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-mongo-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Primeira Coleção:</label>
+                    <input type="text" id="newCollectionNameInput" placeholder="ex: usuarios" class="w-full bg-mongo-900 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-mongo-500">
+                </div>
+            </div>
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeModal('createDbModal')" class="px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded-lg">Cancelar</button>
+                <button onclick="submitCreateDatabase()" class="px-4 py-1.5 text-xs font-bold bg-mongo-600 hover:bg-mongo-500 text-mongo-950 rounded-lg">Criar Banco</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 5: Connection Switcher Modal -->
+    <div id="connectionModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-mongo-950 border border-slate-800 rounded-xl w-full max-w-lg p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-plug text-mongo-500"></i> String de Conexão MongoDB
+                </h3>
+                <button onclick="closeModal('connectionModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <label class="block text-slate-400 mb-1 font-medium">URI do Cluster / Instância local:</label>
+                <input type="text" id="mongoUriInput" value="mongodb://localhost:27017" class="w-full bg-mongo-900 border border-slate-800 rounded-lg p-2 font-mono text-slate-200 focus:outline-none focus:border-mongo-500">
+                <p class="text-[11px] text-slate-500">Simulador Web GUI interativo. Altere para simular diferentes instâncias salvas em cache local.</p>
+            </div>
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeModal('connectionModal')" class="px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded-lg">Cancelar</button>
+                <button onclick="saveConnectionURI()" class="px-4 py-1.5 text-xs font-bold bg-mongo-600 hover:bg-mongo-500 text-mongo-950 rounded-lg">Conectar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        /* ==========================================================================
+           STATE INITIALIZATION (CLEAN BY DEFAULT)
+           ========================================================================== */
+        let dbState = {};
+        let activeDB = null;
+        let activeCollection = null;
+        let activeViewMode = "tree"; // tree | json | table
+        let editingDocId = null;
+        let itemsPerPage = 25;
+        let activeQueryResult = [];
+        let aggregationStages = [];
+        let chartStorageInstance = null;
+        let chartDocsInstance = null;
+
+        // Initialize App
+        window.onload = function () {
+            loadStateFromStorage();
+            renderSidebarTree();
+            switchMainTab('dashboard');
+            initAggregationStages();
+        };
+
+        function loadStateFromStorage() {
+            const saved = localStorage.getItem('mongo_web_manager_db');
+            if (saved) {
+                try {
+                    dbState = JSON.parse(saved);
+                    const dbKeys = Object.keys(dbState);
+                    if (dbKeys.length > 0) {
+                        activeDB = dbKeys[0];
+                        const collKeys = Object.keys(dbState[activeDB] || {});
+                        if (collKeys.length > 0) activeCollection = collKeys[0];
+                    }
+                } catch(e) {
+                    dbState = {};
+                }
+            } else {
+                dbState = {};
+                saveStateToStorage();
+            }
+        }
+
+        function saveStateToStorage() {
+            localStorage.setItem('mongo_web_manager_db', JSON.stringify(dbState));
+        }
+
+        function clearAllData() {
+            if (confirm("Tem certeza que deseja apagar TODOS os bancos de dados e coleções? Esta ação não pode ser desfeita.")) {
+                dbState = {};
+                activeDB = null;
+                activeCollection = null;
+                saveStateToStorage();
+                renderSidebarTree();
+                refreshActiveView();
+                showToast("Todos os bancos foram removidos!", "info");
+            }
+        }
+
+        function renderSidebarTree() {
+            const container = document.getElementById('dbSidebarTree');
+            container.innerHTML = '';
+
+            const dbNames = Object.keys(dbState);
+
+            if (dbNames.length === 0) {
+                container.innerHTML = `
+                    <div class="p-4 text-center text-slate-500 text-xs space-y-2 my-auto">
+                        <i class="fa-solid fa-database text-2xl text-slate-600 mb-1"></i>
+                        <p class="font-medium text-slate-400">Nenhum banco encontrado</p>
+                        <p class="text-[11px] text-slate-500">Crie um novo banco de dados para começar.</p>
+                        <button onclick="openCreateDBModal()" class="mt-2 w-full py-1.5 px-2 bg-mongo-600/20 hover:bg-mongo-600/30 text-mongo-400 border border-mongo-500/30 rounded-lg text-xs font-semibold transition">
+                            <i class="fa-solid fa-plus mr-1"></i> Criar Banco
+                        </button>
+                    </div>
+                `;
+                document.getElementById('sidebarTotalCollections').innerText = '0';
+                document.getElementById('sidebarTotalSize').innerText = '0 KB';
+                document.getElementById('bcDB').innerText = 'Nenhum';
+                document.getElementById('bcColl').innerText = 'Nenhum';
+                return;
+            }
+
+            let totalColls = 0;
+            let totalEstimatedBytes = 0;
+
+            dbNames.forEach(dbName => {
+                const colls = Object.keys(dbState[dbName] || {});
+                totalColls += colls.length;
+
+                const bytes = JSON.stringify(dbState[dbName]).length;
+                totalEstimatedBytes += bytes;
+
+                const dbElement = document.createElement('div');
+                dbElement.className = "mb-2";
+                
+                const isDbActive = dbName === activeDB;
+
+                dbElement.innerHTML = `
+                    <div class="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800/60 cursor-pointer text-xs group ${isDbActive ? 'text-mongo-400 font-semibold' : 'text-slate-300'}" onclick="selectDatabase('${dbName}')">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-database ${isDbActive ? 'text-mongo-500' : 'text-slate-500'}"></i>
+                            <span class="truncate">${dbName}</span>
+                        </div>
+                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                            <button onclick="event.stopPropagation(); openCreateCollectionModal('${dbName}')" title="Nova Coleção" class="p-1 hover:text-mongo-400"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                            <button onclick="event.stopPropagation(); deleteDatabase('${dbName}')" title="Excluir DB" class="p-1 hover:text-rose-400"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
+                        </div>
+                    </div>
+                    <div class="ml-4 pl-2 tree-line space-y-0.5 mt-0.5">
+                        ${colls.length === 0 ? '<div class="text-[10px] text-slate-600 py-0.5 italic">Sem coleções</div>' : ''}
+                        ${colls.map(collName => {
+                            const isCollActive = isDbActive && collName === activeCollection;
+                            const count = dbState[dbName][collName].length;
+                            return `
+                                <div onclick="selectCollection('${dbName}', '${collName}')" class="flex items-center justify-between px-2 py-1 rounded text-xs cursor-pointer group ${isCollActive ? 'bg-mongo-500/10 text-mongo-400 font-semibold border border-mongo-500/20' : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}">
+                                    <div class="flex items-center gap-2 overflow-hidden">
+                                        <i class="fa-solid fa-table-cells ${isCollActive ? 'text-mongo-500' : 'text-slate-500'} text-[11px]"></i>
+                                        <span class="truncate">${collName}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 font-mono">${count}</span>
+                                        <button onclick="event.stopPropagation(); dropCollection('${dbName}', '${collName}')" title="Excluir Coleção" class="p-1 opacity-0 group-hover:opacity-100 hover:text-rose-400 transition">
+                                            <i class="fa-solid fa-xmark text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                container.appendChild(dbElement);
+            });
+
+            document.getElementById('sidebarTotalCollections').innerText = totalColls;
+            document.getElementById('sidebarTotalSize').innerText = (totalEstimatedBytes / 1024).toFixed(1) + " KB";
+            
+            // Update Header Breadcrumb
+            document.getElementById('bcDB').innerText = activeDB || "Nenhum";
+            document.getElementById('bcColl').innerText = activeCollection || "Nenhum";
+        }
+
+        function selectDatabase(dbName) {
+            activeDB = dbName;
+            const colls = Object.keys(dbState[dbName] || {});
+            activeCollection = colls.length > 0 ? colls[0] : null;
+            renderSidebarTree();
+            refreshActiveView();
+        }
+
+        function selectCollection(dbName, collName) {
+            activeDB = dbName;
+            activeCollection = collName;
+            renderSidebarTree();
+            switchMainTab('documents');
+        }
+
+        function switchMainTab(tabName) {
+            ['dashboard', 'documents', 'schema', 'aggregation'].forEach(t => {
+                const btn = document.getElementById(`tabBtn-${t}`);
+                const content = document.getElementById(`tabContent-${t}`);
+                if (t === tabName) {
+                    btn.classList.add('border-mongo-500', 'text-mongo-500', 'bg-mongo-900');
+                    btn.classList.remove('border-transparent', 'text-slate-400');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('border-mongo-500', 'text-mongo-500', 'bg-mongo-900');
+                    btn.classList.add('border-transparent', 'text-slate-400');
+                    content.classList.add('hidden');
+                }
+            });
+
+            if (tabName === 'dashboard') refreshDashboard();
+            if (tabName === 'documents') executeFindQuery();
+            if (tabName === 'schema') renderSchemaAnalysis();
+        }
+
+        function refreshActiveView() {
+            const activeTab = ['dashboard', 'documents', 'schema', 'aggregation'].find(t => !document.getElementById(`tabContent-${t}`).classList.contains('hidden'));
+            if (activeTab) switchMainTab(activeTab);
+        }
+
+        function refreshDashboard() {
+            const dbNames = Object.keys(dbState);
+            let totalDocs = 0;
+            let totalColls = 0;
+            let totalBytes = 0;
+
+            const dbSizes = [];
+            const dbDocs = [];
+
+            dbNames.forEach(name => {
+                const db = dbState[name];
+                let collCount = 0;
+                let docCount = 0;
+                let bytes = JSON.stringify(db).length;
+
+                Object.keys(db).forEach(c => {
+                    collCount++;
+                    docCount += db[c].length;
+                });
+
+                totalColls += collCount;
+                totalDocs += docCount;
+                totalBytes += bytes;
+
+                dbSizes.push((bytes / 1024).toFixed(2));
+                dbDocs.push(docCount);
+            });
+
+            document.getElementById('dashDbCount').innerText = dbNames.length;
+            document.getElementById('dashCollCount').innerText = totalColls;
+            document.getElementById('dashDocCount').innerText = totalDocs;
+            document.getElementById('dashStorageSize').innerText = (totalBytes / 1024).toFixed(1) + " KB";
+
+            // Render Chart 1: Storage
+            const ctx1 = document.getElementById('chartStorage').getContext('2d');
+            if (chartStorageInstance) chartStorageInstance.destroy();
+            chartStorageInstance = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: dbNames.length ? dbNames : ['Nenhum DB'],
+                    datasets: [{
+                        label: 'Tamanho (KB)',
+                        data: dbSizes.length ? dbSizes : [0],
+                        backgroundColor: '#00ed64',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // Render Chart 2: Document Distribution
+            const ctx2 = document.getElementById('chartDocs').getContext('2d');
+            if (chartDocsInstance) chartDocsInstance.destroy();
+            chartDocsInstance = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: dbNames.length ? dbNames : ['Nenhum DB'],
+                    datasets: [{
+                        data: dbDocs.length ? dbDocs : [1],
+                        backgroundColor: dbNames.length ? ['#00ed64', '#3b82f6', '#a855f7', '#f59e0b', '#ec4899'] : ['#334155']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } } }
+                }
+            });
+        }
+
+        function toggleQueryOptions() {
+            const panel = document.getElementById('queryOptionsPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function executeFindQuery() {
+            if (!activeDB || !activeCollection || !dbState[activeDB] || !dbState[activeDB][activeCollection]) {
+                document.getElementById('documentsContainer').innerHTML = `
+                    <div class="p-8 text-center text-slate-500 space-y-2">
+                        <i class="fa-solid fa-folder-open text-3xl mb-1"></i>
+                        <p class="text-sm font-semibold text-slate-400">Nenhuma coleção selecionada</p>
+                        <p class="text-xs text-slate-500">Crie um banco de dados e coleção para visualizar e inserir documentos.</p>
+                        <button onclick="openCreateDBModal()" class="mt-2 px-3 py-1.5 bg-mongo-600 hover:bg-mongo-500 text-mongo-950 font-bold rounded-lg text-xs inline-flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-plus"></i> Criar Banco de Dados
+                        </button>
+                    </div>
+                `;
+                document.getElementById('queryResultsCount').innerText = `Exibindo 0 de 0`;
+                return;
+            }
+
+            let docs = [...dbState[activeDB][activeCollection]];
+
+            // 1. Filter Execution
+            const filterStr = document.getElementById('queryFilterInput').value.trim();
+            if (filterStr && filterStr !== '{}') {
+                try {
+                    const filterObj = JSON.parse(filterStr);
+                    docs = docs.filter(doc => matchesMongoFilter(doc, filterObj));
+                } catch(e) {
+                    showToast("Sintaxe de Filtro JSON Inválida!", "error");
+                }
+            }
+
+            // 2. Sort Execution
+            const sortStr = document.getElementById('querySortInput').value.trim();
+            if (sortStr && sortStr !== '{}') {
+                try {
+                    const sortObj = JSON.parse(sortStr);
+                    const sortKeys = Object.keys(sortObj);
+                    docs.sort((a, b) => {
+                        for (let key of sortKeys) {
+                            const dir = sortObj[key];
+                            if (a[key] < b[key]) return dir === 1 ? -1 : 1;
+                            if (a[key] > b[key]) return dir === 1 ? 1 : -1;
+                        }
+                        return 0;
+                    });
+                } catch(e) {}
+            }
+
+            // 3. Projection Execution
+            const projStr = document.getElementById('queryProjectInput').value.trim();
+            if (projStr && projStr !== '{}') {
+                try {
+                    const projObj = JSON.parse(projStr);
+                    const keys = Object.keys(projObj);
+                    const isInclusive = projObj[keys[0]] === 1;
+
+                    docs = docs.map(doc => {
+                        let newDoc = {};
+                        if (isInclusive) {
+                            newDoc._id = doc._id; // _id is included by default
+                            keys.forEach(k => { if (projObj[k] === 1) newDoc[k] = doc[k]; });
+                        } else {
+                            newDoc = { ...doc };
+                            keys.forEach(k => { if (projObj[k] === 0) delete newDoc[k]; });
+                        }
+                        return newDoc;
+                    });
+                } catch(e) {}
+            }
+
+            activeQueryResult = docs;
+            document.getElementById('queryResultsCount').innerText = `Exibindo ${Math.min(docs.length, itemsPerPage)} de ${docs.length}`;
+
+            renderDocuments();
+        }
+
+        // Simple Simulated Mongo Matcher
+        function matchesMongoFilter(doc, filter) {
+            for (let key in filter) {
+                const condition = filter[key];
+                const value = doc[key];
+
+                if (typeof condition === 'object' && condition !== null) {
+                    if (condition['$gte'] !== undefined && !(value >= condition['$gte'])) return false;
+                    if (condition['$lte'] !== undefined && !(value <= condition['$lte'])) return false;
+                    if (condition['$gt'] !== undefined && !(value > condition['$gt'])) return false;
+                    if (condition['$lt'] !== undefined && !(value < condition['$lt'])) return false;
+                    if (condition['$ne'] !== undefined && value === condition['$ne']) return false;
+                    if (condition['$in'] !== undefined && Array.isArray(condition['$in']) && !condition['$in'].includes(value)) return false;
+                } else {
+                    if (value !== condition) return false;
+                }
+            }
+            return true;
+        }
+
+        function setDocumentViewMode(mode) {
+            activeViewMode = mode;
+            ['tree', 'json', 'table'].forEach(m => {
+                const btn = document.getElementById(`viewBtn-${m}`);
+                if (m === mode) {
+                    btn.className = "px-2.5 py-1 rounded bg-slate-800 text-slate-100 font-medium";
+                } else {
+                    btn.className = "px-2.5 py-1 rounded text-slate-400 hover:text-slate-200";
+                }
+            });
+            renderDocuments();
+        }
+
+        function changeItemsPerPage(val) {
+            itemsPerPage = parseInt(val);
+            executeFindQuery();
+        }
+
+        function renderDocuments() {
+            const container = document.getElementById('documentsContainer');
+            container.innerHTML = '';
+
+            const pageDocs = activeQueryResult.slice(0, itemsPerPage);
+
+            if (pageDocs.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center text-slate-500 space-y-3">
+                        <i class="fa-solid fa-file-circle-plus text-3xl text-slate-600 mb-1"></i>
+                        <p class="text-sm font-medium text-slate-400">Coleção vazia</p>
+                        <p class="text-xs text-slate-500">Insira um novo documento ou importe um arquivo JSON/CSV.</p>
+                        <div class="flex justify-center gap-2 pt-1">
+                            <button onclick="openInsertDocumentModal()" class="px-3 py-1.5 bg-mongo-600/20 hover:bg-mongo-600/30 text-mongo-400 border border-mongo-500/30 rounded-lg text-xs font-semibold transition">
+                                <i class="fa-solid fa-plus mr-1"></i> Inserir Documento
+                            </button>
+                            <button onclick="openImportModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs transition">
+                                <i class="fa-solid fa-file-import mr-1"></i> Importar JSON/CSV
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (activeViewMode === 'json') {
+                const wrapper = document.createElement('div');
+                wrapper.className = "bg-mongo-950 p-4 rounded-xl border border-slate-800 text-slate-200 font-mono text-xs overflow-x-auto";
+                wrapper.innerHTML = `<pre class="text-emerald-400">${escapeHtml(JSON.stringify(pageDocs, null, 2))}</pre>`;
+                container.appendChild(wrapper);
+                return;
+            }
+
+            if (activeViewMode === 'table') {
+                // Collect unique keys for headers
+                const allKeys = new Set();
+                pageDocs.forEach(d => Object.keys(d).forEach(k => allKeys.add(k)));
+                const headers = Array.from(allKeys);
+
+                let html = `
+                    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-mongo-950">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-mongo-900 border-b border-slate-800 text-slate-400 uppercase font-mono text-[10px]">
+                                <tr>
+                                    <th class="p-2.5 w-16 text-center">Ações</th>
+                                    ${headers.map(h => `<th class="p-2.5">${h}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60 font-mono">
+                `;
+
+                pageDocs.forEach(doc => {
+                    html += `<tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-2 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button onclick="openEditDocumentModal('${doc._id}')" class="text-slate-400 hover:text-mongo-400"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteDocument('${doc._id}')" class="text-slate-400 hover:text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                    headers.forEach(h => {
+                        const val = doc[h];
+                        let renderedVal = '<span class="text-slate-600">null</span>';
+                        if (val !== undefined && val !== null) {
+                            if (typeof val === 'object') renderedVal = `<span class="text-amber-400 font-bold">${JSON.stringify(val)}</span>`;
+                            else if (typeof val === 'number') renderedVal = `<span class="text-blue-400">${val}</span>`;
+                            else if (typeof val === 'boolean') renderedVal = `<span class="text-purple-400">${val}</span>`;
+                            else renderedVal = `<span class="text-slate-200">${escapeHtml(String(val))}</span>`;
+                        }
+                        html += `<td class="p-2.5 max-w-xs truncate">${renderedVal}</td>`;
+                    });
+                    html += `</tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+                return;
+            }
+
+            // TREE VIEW DEFAULT
+            pageDocs.forEach(doc => {
+                const card = document.createElement('div');
+                card.className = "bg-mongo-950 border border-slate-800/90 rounded-xl p-3 space-y-2 hover:border-slate-700 transition";
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-slate-800/80 pb-2">
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="text-slate-500 font-mono">_id:</span>
+                            <span class="text-mongo-400 font-bold font-mono px-2 py-0.5 rounded bg-mongo-500/10 border border-mongo-500/20">${doc._id}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <button onclick="cloneDocument('${doc._id}')" title="Clonar" class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-800 transition"><i class="fa-solid fa-copy mr-1"></i> Clonar</button>
+                            <button onclick="openEditDocumentModal('${doc._id}')" title="Editar" class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-mongo-400 rounded border border-slate-800 transition"><i class="fa-solid fa-pen mr-1"></i> Editar</button>
+                            <button onclick="deleteDocument('${doc._id}')" title="Excluir" class="px-2 py-1 bg-slate-900 hover:bg-rose-950 text-rose-400 rounded border border-slate-800 transition"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                    <div class="space-y-1 font-mono text-xs pl-2">
+                        ${renderTreeNodes(doc)}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Interactive Tree Recursive Generator
+        function renderTreeNodes(obj, level = 0) {
+            let html = '';
+            for (let key in obj) {
+                if (key === '_id' && level === 0) continue;
+                const val = obj[key];
+                const type = getBsonType(val);
+
+                if (type === 'Object' || type === 'Array') {
+                    html += `
+                        <div class="my-1">
+                            <span class="text-slate-300 font-medium">${key}:</span> 
+                            <span class="text-slate-500 text-[10px] uppercase font-bold">${type} (${Object.keys(val).length})</span>
+                            <div class="ml-4 pl-2 tree-line space-y-1 my-1">
+                                ${renderTreeNodes(val, level + 1)}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="flex items-center gap-2 hover:bg-slate-900/50 p-0.5 rounded">
+                            <span class="text-slate-400 font-medium">${key}:</span>
+                            ${renderValueWithTypeBadge(val, type)}
+                        </div>
+                    `;
+                }
+            }
+            return html;
+        }
+
+        function renderValueWithTypeBadge(val, type) {
+            let badge = `<span class="text-[9px] px-1.5 py-0.2 rounded font-semibold `;
+            let valHtml = '';
+
+            if (type === 'String') {
+                badge += `bg-emerald-950 text-emerald-400 border border-emerald-800">String</span>`;
+                valHtml = `<span class="text-emerald-300 font-mono">"${escapeHtml(val)}"</span>`;
+            } else if (type === 'Number') {
+                badge += `bg-blue-950 text-blue-400 border border-blue-800">Number</span>`;
+                valHtml = `<span class="text-blue-300 font-mono">${val}</span>`;
+            } else if (type === 'Boolean') {
+                badge += `bg-purple-950 text-purple-400 border border-purple-800">Boolean</span>`;
+                valHtml = `<span class="text-purple-300 font-mono font-bold">${val}</span>`;
+            } else {
+                badge += `bg-slate-800 text-slate-400">${type}</span>`;
+                valHtml = `<span class="text-slate-300 font-mono">${val}</span>`;
+            }
+
+            return `${valHtml} ${badge}`;
+        }
+
+        function getBsonType(val) {
+            if (val === null) return 'Null';
+            if (Array.isArray(val)) return 'Array';
+            if (typeof val === 'boolean') return 'Boolean';
+            if (typeof val === 'number') return 'Number';
+            if (typeof val === 'string') {
+                if (/^[0-9a-fA-F]{24}$/.test(val)) return 'ObjectId';
+                return 'String';
+            }
+            if (typeof val === 'object') return 'Object';
+            return 'Unknown';
+        }
+
+        function openInsertDocumentModal() {
+            if (!activeDB || !activeCollection) {
+                showToast("Crie ou selecione um Banco e Coleção primeiro!", "error");
+                openCreateDBModal();
+                return;
+            }
+
+            editingDocId = null;
+            document.getElementById('docModalTitle').innerHTML = `<i class="fa-solid fa-plus text-mongo-500"></i> Inserir Novo Documento`;
+            document.getElementById('documentJsonInput').value = JSON.stringify({
+                "_id": generateObjectId(),
+                "campoExemplo": "Valor",
+                "createdAt": new Date().toISOString()
+            }, null, 2);
+            document.getElementById('documentJsonError').classList.add('hidden');
+            openModal('documentEditorModal');
+        }
+
+        function openEditDocumentModal(docId) {
+            editingDocId = docId;
+            const doc = dbState[activeDB][activeCollection].find(d => d._id === docId);
+            if (!doc) return;
+
+            document.getElementById('docModalTitle').innerHTML = `<i class="fa-solid fa-file-pen text-mongo-500"></i> Editar Documento [${docId}]`;
+            document.getElementById('documentJsonInput').value = JSON.stringify(doc, null, 2);
+            document.getElementById('documentJsonError').classList.add('hidden');
+            openModal('documentEditorModal');
+        }
+
+        function saveDocumentFromModal() {
+            if (!activeDB || !activeCollection) {
+                showToast("Crie um Banco de Dados e uma Coleção antes de salvar!", "error");
+                return;
+            }
+
+            const raw = document.getElementById('documentJsonInput').value;
+            const errorDiv = document.getElementById('documentJsonError');
+
+            try {
+                const parsed = JSON.parse(raw);
+                if (!parsed._id) parsed._id = generateObjectId();
+
+                const coll = dbState[activeDB][activeCollection];
+
+                if (editingDocId) {
+                    // Update
+                    const idx = coll.findIndex(d => d._id === editingDocId);
+                    if (idx !== -1) coll[idx] = parsed;
+                    showToast("Documento atualizado com sucesso!", "success");
+                } else {
+                    // Insert
+                    coll.unshift(parsed);
+                    showToast("Documento inserido com sucesso!", "success");
+                }
+
+                saveStateToStorage();
+                closeModal('documentEditorModal');
+                executeFindQuery();
+            } catch(e) {
+                errorDiv.innerText = "Erro de Sintaxe JSON: " + e.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function cloneDocument(docId) {
+            const doc = dbState[activeDB][activeCollection].find(d => d._id === docId);
+            if (!doc) return;
+
+            const cloned = JSON.parse(JSON.stringify(doc));
+            cloned._id = generateObjectId();
+            if (cloned.name) cloned.name += " (Cópia)";
+
+            dbState[activeDB][activeCollection].unshift(cloned);
+            saveStateToStorage();
+            executeFindQuery();
+            showToast("Documento clonado com sucesso!", "success");
+        }
+
+        function deleteDocument(docId) {
+            if (confirm(`Tem certeza de que deseja excluir permanentemente o documento _id: ${docId}?`)) {
+                dbState[activeDB][activeCollection] = dbState[activeDB][activeCollection].filter(d => d._id !== docId);
+                saveStateToStorage();
+                executeFindQuery();
+                showToast("Documento excluído!", "info");
+            }
+        }
+
+        function beautifyDocumentInput() {
+            try {
+                const raw = document.getElementById('documentJsonInput').value;
+                document.getElementById('documentJsonInput').value = JSON.stringify(JSON.parse(raw), null, 2);
+            } catch(e) {}
+        }
+
+        function renderSchemaAnalysis() {
+            const container = document.getElementById('schemaAnalysisContainer');
+            container.innerHTML = '';
+
+            if (!activeDB || !activeCollection) {
+                container.innerHTML = `<p class="text-slate-500 italic">Crie ou selecione um Banco e Coleção para analisar o schema.</p>`;
+                return;
+            }
+
+            const docs = dbState[activeDB][activeCollection] || [];
+            if (docs.length === 0) {
+                container.innerHTML = `<p class="text-slate-500 italic">Coleção vazia. Adicione documentos para analisar o schema.</p>`;
+                return;
+            }
+
+            // Analyze Field Types Frequency
+            const fieldStats = {};
+            docs.forEach(doc => {
+                Object.keys(doc).forEach(key => {
+                    const type = getBsonType(doc[key]);
+                    if (!fieldStats[key]) fieldStats[key] = { total: 0, types: {} };
+                    fieldStats[key].total++;
+                    fieldStats[key].types[type] = (fieldStats[key].types[type] || 0) + 1;
+                });
+            });
+
+            Object.keys(fieldStats).forEach(field => {
+                const stat = fieldStats[field];
+                const presencePct = Math.round((stat.total / docs.length) * 100);
+
+                const card = document.createElement('div');
+                card.className = "bg-mongo-950 p-4 rounded-xl border border-slate-800 space-y-2";
+
+                let typesBarHtml = '';
+                Object.keys(stat.types).forEach(type => {
+                    const count = stat.types[type];
+                    const pct = Math.round((count / stat.total) * 100);
+                    typesBarHtml += `
+                        <div class="flex justify-between text-xs text-slate-300">
+                            <span><strong class="text-mongo-400 font-mono">${type}</strong> (${count} de ${stat.total})</span>
+                            <span class="font-mono text-slate-400">${pct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-mongo-500 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-[#key] fa-cube text-mongo-500 text-xs"></i>
+                            <span class="font-bold font-mono text-sm text-slate-100">${field}</span>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 font-mono">Presente em ${presencePct}% dos documentos</span>
+                    </div>
+                    <div class="space-y-1 pt-2 border-t border-slate-900">
+                        ${typesBarHtml}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function initAggregationStages() {
+            aggregationStages = [
+                { stage: '$match', code: '{\n  \n}' },
+                { stage: '$sort', code: '{\n  \n}' }
+            ];
+            renderAggregationStages();
+        }
+
+        function renderAggregationStages() {
+            const container = document.getElementById('aggregationStagesList');
+            container.innerHTML = '';
+
+            aggregationStages.forEach((stg, idx) => {
+                const stageDiv = document.createElement('div');
+                stageDiv.className = "bg-mongo-950 border border-slate-800 rounded-xl p-3 space-y-2";
+
+                stageDiv.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-slate-400">#${idx + 1} Estágio</span>
+                            <select onchange="updateStageOperator(${idx}, this.value)" class="bg-mongo-900 border border-slate-800 text-mongo-400 font-mono text-xs rounded px-2 py-1 focus:outline-none">
+                                <option value="$match" ${stg.stage==='$match'?'selected':''}>$match</option>
+                                <option value="$group" ${stg.stage==='$group'?'selected':''}>$group</option>
+                                <option value="$sort" ${stg.stage==='$sort'?'selected':''}>$sort</option>
+                                <option value="$project" ${stg.stage==='$project'?'selected':''}>$project</option>
+                                <option value="$limit" ${stg.stage==='$limit'?'selected':''}>$limit</option>
+                            </select>
+                        </div>
+                        <button onclick="removeAggregationStage(${idx})" class="text-slate-500 hover:text-rose-400 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                    <textarea onchange="updateStageCode(${idx}, this.value)" class="w-full bg-mongo-900 border border-slate-800/80 rounded-lg p-2 font-mono text-xs text-slate-200 focus:outline-none focus:border-mongo-500 h-24 resize-none">${stg.code}</textarea>
+                `;
+                container.appendChild(stageDiv);
+            });
+        }
+
+        function addAggregationStage() {
+            aggregationStages.push({ stage: '$match', code: '{\n  \n}' });
+            renderAggregationStages();
+        }
+
+        function removeAggregationStage(idx) {
+            aggregationStages.splice(idx, 1);
+            renderAggregationStages();
+        }
+
+        function updateStageOperator(idx, val) {
+            aggregationStages[idx].stage = val;
+        }
+
+        function updateStageCode(idx, val) {
+            aggregationStages[idx].code = val;
+        }
+
+        function runAggregationPipeline() {
+            if (!activeDB || !activeCollection) {
+                showToast("Selecione um banco e coleção primeiro!", "error");
+                return;
+            }
+
+            let result = [...(dbState[activeDB][activeCollection] || [])];
+
+            try {
+                for (let stg of aggregationStages) {
+                    const codeTrim = stg.code.trim();
+                    if (!codeTrim || codeTrim === '{}') continue;
+
+                    const stageObj = JSON.parse(codeTrim);
+
+                    if (stg.stage === '$match') {
+                        result = result.filter(doc => matchesMongoFilter(doc, stageObj));
+                    } else if (stg.stage === '$sort') {
+                        const keys = Object.keys(stageObj);
+                        result.sort((a, b) => {
+                            for (let k of keys) {
+                                if (a[k] < b[k]) return stageObj[k] === 1 ? -1 : 1;
+                                if (a[k] > b[k]) return stageObj[k] === 1 ? 1 : -1;
+                            }
+                            return 0;
+                        });
+                    } else if (stg.stage === '$limit') {
+                        const lim = typeof stageObj === 'number' ? stageObj : stageObj.limit || 10;
+                        result = result.slice(0, lim);
+                    }
+                }
+
+                document.getElementById('aggregationResultCount').innerText = `${result.length} documentos retornados`;
+                document.getElementById('aggregationResultPre').innerText = JSON.stringify(result, null, 2);
+                showToast("Pipeline executada com sucesso!", "success");
+            } catch(e) {
+                document.getElementById('aggregationResultPre').innerText = "Erro na Agregação: " + e.message;
+                showToast("Erro na pipeline de agregação", "error");
+            }
+        }
+
+        function openExportModal() { openModal('exportModal'); }
+        function openImportModal() { openModal('importModal'); }
+
+        function triggerExportDownload() {
+            if (!activeDB || !activeCollection) {
+                showToast("Nenhuma coleção disponível para exportar!", "error");
+                return;
+            }
+
+            const scope = document.getElementById('exportScope').value;
+            const format = document.querySelector('input[name="exportFormat"]:checked').value;
+
+            const dataToExport = scope === 'filtered' ? activeQueryResult : (dbState[activeDB][activeCollection] || []);
+
+            let blobContent = '';
+            let mimeType = 'text/plain';
+            let filename = `${activeCollection}_export.${format}`;
+
+            if (format === 'json') {
+                blobContent = JSON.stringify(dataToExport, null, 2);
+                mimeType = 'application/json';
+            } else if (format === 'jsonl') {
+                blobContent = dataToExport.map(d => JSON.stringify(d)).join('\n');
+                mimeType = 'application/x-jsonlines';
+            } else if (format === 'csv') {
+                const keys = Array.from(new Set(dataToExport.flatMap(Object.keys)));
+                blobContent = keys.join(',') + '\n';
+                dataToExport.forEach(d => {
+                    const row = keys.map(k => JSON.stringify(d[k] !== undefined ? d[k] : ''));
+                    blobContent += row.join(',') + '\n';
+                });
+                mimeType = 'text/csv';
+            }
+
+            const blob = new Blob([blobContent], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            closeModal('exportModal');
+            showToast(`Exportado ${dataToExport.length} documentos em ${format.toUpperCase()}`, "success");
+        }
+
+        function processFileImport() {
+            if (!activeDB || !activeCollection) {
+                showToast("Crie e selecione um Banco de Dados e Coleção antes de importar!", "error");
+                openCreateDBModal();
+                return;
+            }
+
+            const fileInput = document.getElementById('importFileInput');
+            if (!fileInput.files.length) return;
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const content = JSON.parse(e.target.result);
+                    const docsToAdd = Array.isArray(content) ? content : [content];
+
+                    docsToAdd.forEach(d => {
+                        if (!d._id) d._id = generateObjectId();
+                        dbState[activeDB][activeCollection].unshift(d);
+                    });
+
+                    saveStateToStorage();
+                    closeModal('importModal');
+                    executeFindQuery();
+                    showToast(`${docsToAdd.length} documentos importados!`, "success");
+                } catch(err) {
+                    showToast("Erro ao processar arquivo JSON!", "error");
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        function openCreateDBModal() { openModal('createDbModal'); }
+
+        function openCreateCollectionModal(dbName) {
+            const collName = prompt(`Digite o nome da nova coleção para '${dbName}':`);
+            if (collName) {
+                if (!dbState[dbName]) dbState[dbName] = {};
+                if (!dbState[dbName][collName]) {
+                    dbState[dbName][collName] = [];
+                    saveStateToStorage();
+                    renderSidebarTree();
+                    selectCollection(dbName, collName);
+                    showToast(`Coleção '${collName}' criada!`, "success");
+                }
+            }
+        }
+
+        function submitCreateDatabase() {
+            const dbName = document.getElementById('newDbNameInput').value.trim();
+            const collName = document.getElementById('newCollectionNameInput').value.trim();
+
+            if (!dbName || !collName) {
+                showToast("Preencha todos os campos!", "error");
+                return;
+            }
+
+            if (!dbState[dbName]) dbState[dbName] = {};
+            dbState[dbName][collName] = [];
+
+            saveStateToStorage();
+            closeModal('createDbModal');
+            renderSidebarTree();
+            selectCollection(dbName, collName);
+            showToast(`Banco '${dbName}' e coleção '${collName}' criados!`, "success");
+        }
+
+        function deleteDatabase(dbName) {
+            if (confirm(`Excluir permanentemente o banco de dados '${dbName}' e TODAS as suas coleções?`)) {
+                delete dbState[dbName];
+                const remaining = Object.keys(dbState);
+                activeDB = remaining.length ? remaining[0] : null;
+                activeCollection = activeDB ? (Object.keys(dbState[activeDB])[0] || null) : null;
+                saveStateToStorage();
+                renderSidebarTree();
+                refreshActiveView();
+                showToast(`Banco '${dbName}' excluído!`, "info");
+            }
+        }
+
+        function dropCollection(dbName, collName) {
+            if (confirm(`Remover coleção '${collName}' do banco '${dbName}'?`)) {
+                delete dbState[dbName][collName];
+                const remaining = Object.keys(dbState[dbName]);
+                if (activeCollection === collName) {
+                    activeCollection = remaining.length ? remaining[0] : null;
+                }
+                saveStateToStorage();
+                renderSidebarTree();
+                refreshActiveView();
+                showToast(`Coleção '${collName}' removida!`, "info");
+            }
+        }
+
+        function openConnectionModal() { openModal('connectionModal'); }
+        function saveConnectionURI() {
+            const uri = document.getElementById('mongoUriInput').value;
+            document.getElementById('activeConnectionURI').innerText = uri;
+            closeModal('connectionModal');
+            showToast("Conexão atualizada!", "success");
+        }
+
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        function generateObjectId() {
+            const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0');
+            const random = Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+            return timestamp + random;
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            let colors = 'bg-slate-800 text-slate-200 border-slate-700';
+            if (type === 'success') colors = 'bg-emerald-950 text-emerald-300 border-emerald-500/40';
+            if (type === 'error') colors = 'bg-rose-950 text-rose-300 border-rose-500/40';
+
+            toast.className = `px-4 py-2.5 rounded-xl border shadow-xl text-xs flex items-center gap-2 transition duration-300 transform translate-y-2 pointer-events-auto ${colors}`;
+            toast.innerHTML = `<span>${message}</span>`;
+
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>
