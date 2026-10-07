@@ -58,6 +58,37 @@
 
     <!-- Top Header Navigation -->
     <header class="h-14 bg-mongo-950 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 select-none">
+        <!-- Localização: DENTRO DO <body> -->
+<div id="tab-terminal" class="tab-content h-full flex flex-col p-4">
+    <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center space-x-2 text-xs text-slate-400">
+            <span class="flex h-2 w-2 relative">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Interactive Mongo Shell v6.0</span>
+        </div>
+        <div class="flex items-center space-x-3 text-xs text-slate-400">
+            <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[10px]">Tab</kbd> / <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[10px]">→</kbd> Complete</span>
+            <button id="btn-clear-terminal" class="hover:text-slate-200 transition-colors">Clear output</button>
+        </div>
+    </div>
+
+    <div id="terminal-window" class="flex-1 bg-slate-950 border border-slate-800/80 rounded-lg p-4 font-mono text-sm overflow-y-auto flex flex-col shadow-inner">
+        <div id="terminal-output" class="space-y-2 mb-2">
+            <div class="text-slate-400">MongoDB Shell v6.0.0 Ready. Type <span class="text-emerald-400">help</span> for commands.</div>
+        </div>
+        
+        <!-- Linha do prompt com a camada do Ghost Text -->
+        <div class="flex items-center mt-auto pt-2 relative">
+            <span id="terminal-prompt" class="text-emerald-400 font-semibold mr-2 shrink-0 select-none">test&gt;</span>
+            <div class="relative flex-1 flex items-center font-mono">
+                <div id="terminal-ghost" class="absolute left-0 top-0 bottom-0 flex items-center pointer-events-none text-slate-500 whitespace-pre overflow-hidden z-0 select-none opacity-40"></div>
+                <input type="text" id="terminal-input" class="w-full bg-transparent text-slate-100 outline-none border-none p-0 focus:ring-0 font-mono relative z-10" autocomplete="off" spellcheck="false" focus>
+            </div>
+        </div>
+    </div>
+</div>
         <div class="flex items-center gap-3">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-mongo-500/10 text-mongo-500 border border-mongo-500/30">
                 <i class="fa-solid fa-leaf text-lg"></i>
@@ -1902,6 +1933,138 @@
             container.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
+        const SHELL_COMMANDS = [
+        'show dbs',
+        'show databases',
+        'show collections',
+        'show tables',
+        'use ',
+        'help',
+        'clear',
+        'cls',
+        'db.createCollection(\'',
+        'db.dropDatabase()'
+    ];
+
+    const COLLECTION_METHODS = [
+        'find()',
+        'findOne()',
+        'insertOne({})',
+        'insertMany([])',
+        'updateOne({}, {$set: {}})',
+        'updateMany({}, {$set: {}})',
+        'deleteOne({})',
+        'deleteMany({})',
+        'countDocuments()',
+        'aggregate([])',
+        'drop()'
+    ];
+
+    function getShellSuggestions(input) {
+        if (!input || !input.trim()) return [];
+        const suggestions = new Set();
+        const lowerInput = input.toLowerCase();
+
+        SHELL_COMMANDS.forEach(cmd => {
+            if (cmd.toLowerCase().startsWith(lowerInput)) {
+                suggestions.add(cmd);
+            }
+        });
+
+        if (lowerInput.startsWith('use ')) {
+            const prefix = input.substring(4);
+            appState.databases.forEach(db => {
+                if (db.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                    suggestions.add(`use ${db.name}`);
+                }
+            });
+        }
+
+        if (input.startsWith('db.')) {
+            const currentDb = appState.databases.find(d => d.name === appState.currentDb);
+            if (currentDb && currentDb.collections) {
+                currentDb.collections.forEach(col => {
+                    const colPrefix = `db.${col.name}`;
+                    if (colPrefix.toLowerCase().startsWith(input.toLowerCase())) {
+                        suggestions.add(colPrefix);
+                        suggestions.add(`${colPrefix}.find()`);
+                    }
+                    if (input.startsWith(`${colPrefix}.`)) {
+                        const methodPrefix = input.substring(colPrefix.length + 1);
+                        COLLECTION_METHODS.forEach(method => {
+                            if (method.toLowerCase().startsWith(methodPrefix.toLowerCase())) {
+                                suggestions.add(`${colPrefix}.${method}`);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        return Array.from(suggestions);
+    }
+
+    function updateGhostText() {
+        const inputEl = document.getElementById('terminal-input');
+        const ghostEl = document.getElementById('terminal-ghost');
+        if (!inputEl || !ghostEl) return;
+
+        const value = inputEl.value;
+        if (!value) {
+            ghostEl.textContent = '';
+            return;
+        }
+
+        const matches = getShellSuggestions(value);
+        if (matches.length > 0 && matches[0].startsWith(value)) {
+            ghostEl.textContent = matches[0];
+        } else {
+            ghostEl.textContent = '';
+        }
+    }
+
+    function setupTerminalAutocomplete() {
+        const inputEl = document.getElementById('terminal-input');
+        const ghostEl = document.getElementById('terminal-ghost');
+
+        if (!inputEl) return;
+
+        inputEl.addEventListener('input', updateGhostText);
+
+        inputEl.addEventListener('keydown', (e) => {
+            const currentText = inputEl.value;
+            const matches = getShellSuggestions(currentText);
+            const currentSuggestion = (matches.length > 0 && matches[0].startsWith(currentText)) ? matches[0] : null;
+
+            const isArrowRightAtEnd = (e.key === 'ArrowRight' && inputEl.selectionStart === currentText.length);
+
+            if ((e.key === 'Tab' || isArrowRightAtEnd) && currentSuggestion) {
+                e.preventDefault();
+                inputEl.value = currentSuggestion;
+                ghostEl.textContent = '';
+
+                let cursorPosition = currentSuggestion.length;
+                const cursorOffsets = ["('", "({})", "([])"];
+                cursorOffsets.forEach(pattern => {
+                    const idx = currentSuggestion.indexOf(pattern);
+                    if (idx !== -1) {
+                        cursorPosition = idx + pattern.length - 1;
+                    }
+                });
+                
+                inputEl.setSelectionRange(cursorPosition, cursorPosition);
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                e.preventDefault();
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setupTerminalAutocomplete();
+    });
     </script>
 </body>
 </html>
