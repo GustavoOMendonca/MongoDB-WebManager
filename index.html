@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MongoWeb Studio - MongoDB Web Manager</title>
+    <title>MongoWeb Studio - MongoDB Web Manager & Shell</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -27,17 +27,31 @@
             }
         }
     </script>
-    <!-- FontAwesome & Lucide Icons -->
+    <!-- FontAwesome & Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Custom Scrollbar for Code & Trees */
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #00141e; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #334155; }
         .tree-line { border-left: 1px dashed rgba(255, 255, 255, 0.15); }
+        
+        /* Terminal Cursor Blink */
+        .terminal-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background-color: #00ed64;
+            vertical-align: middle;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-mongo-900 text-slate-200 font-sans h-full overflow-hidden flex flex-col antialiased">
@@ -48,18 +62,22 @@
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-mongo-500/10 text-mongo-500 border border-mongo-500/30">
                 <i class="fa-solid fa-leaf text-lg"></i>
             </div>
-            <span class="font-bold text-lg tracking-wide text-white">MongoWeb <span class="text-mongo-500 font-mono text-xs px-2 py-0.5 rounded bg-mongo-500/10 border border-mongo-500/20">v2.4 Clean Edition</span></span>
+            <span class="font-bold text-lg tracking-wide text-white">MongoWeb <span class="text-mongo-500 font-mono text-xs px-2 py-0.5 rounded bg-mongo-500/10 border border-mongo-500/20">v2.5 + Shell CLI</span></span>
         </div>
 
-        <!-- Connection Indicator & Quick Clear -->
-        <div class="flex items-center gap-4">
-            <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+        <!-- Connection Indicator & Quick Controls -->
+        <div class="flex items-center gap-3">
+            <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs font-mono hidden sm:flex">
                 <span class="relative flex h-2 w-2">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
                 <span id="activeConnectionURI">mongodb://localhost:27017</span>
             </div>
+
+            <button onclick="toggleBottomTerminal()" class="px-3 py-1.5 text-xs bg-mongo-500/10 hover:bg-mongo-500/20 text-mongo-400 border border-mongo-500/30 rounded-lg transition flex items-center gap-1.5 font-mono">
+                <i class="fa-solid fa-terminal"></i> Toggle Shell
+            </button>
 
             <button onclick="openConnectionModal()" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
                 <i class="fa-solid fa-network-wired"></i> Conexões
@@ -71,7 +89,7 @@
     </header>
 
     <!-- Main Content Container -->
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex overflow-hidden relative">
 
         <!-- Sidebar: Databases & Collections Tree -->
         <aside class="w-64 bg-mongo-950 border-r border-slate-800 flex flex-col shrink-0">
@@ -96,13 +114,13 @@
         </aside>
 
         <!-- Central Workspace -->
-        <main class="flex-1 flex flex-col bg-mongo-900 overflow-hidden">
+        <main class="flex-1 flex flex-col bg-mongo-900 overflow-hidden relative">
             
             <!-- Workspace Navigation Tabs -->
             <div class="bg-mongo-950/80 border-b border-slate-800 px-4 flex items-center justify-between h-11 shrink-0">
                 <div class="flex space-x-1" id="mainTabs">
                     <button id="tabBtn-dashboard" onclick="switchMainTab('dashboard')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-mongo-500 text-mongo-500 bg-mongo-900 transition flex items-center gap-2">
-                        <i class="fa-solid fa-chart-pie"></i> Dashboard Geral
+                        <i class="fa-solid fa-chart-pie"></i> Dashboard
                     </button>
                     <button id="tabBtn-documents" onclick="switchMainTab('documents')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2">
                         <i class="fa-solid fa-table-cells"></i> Documentos & CRUD
@@ -111,7 +129,10 @@
                         <i class="fa-solid fa-diagram-project"></i> Schema & Tipos
                     </button>
                     <button id="tabBtn-aggregation" onclick="switchMainTab('aggregation')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2">
-                        <i class="fa-solid fa-filter"></i> Aggregation Builder
+                        <i class="fa-solid fa-filter"></i> Aggregation
+                    </button>
+                    <button id="tabBtn-shell" onclick="switchMainTab('shell')" class="px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2 font-mono">
+                        <i class="fa-solid fa-terminal text-mongo-500"></i> Mongo Shell CLI
                     </button>
                 </div>
 
@@ -121,7 +142,7 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-hidden relative">
+            <div class="flex-1 overflow-hidden relative flex flex-col">
 
                 <!-- 1. DASHBOARD TAB VIEW -->
                 <div id="tabContent-dashboard" class="absolute inset-0 p-6 overflow-y-auto space-y-6">
@@ -195,7 +216,7 @@
                 <!-- 2. DOCUMENTS & CRUD TAB VIEW -->
                 <div id="tabContent-documents" class="absolute inset-0 flex flex-col hidden">
                     
-                    <!-- Mongo Query Bar (Filter, Sort, Project, Pagination) -->
+                    <!-- Mongo Query Bar -->
                     <div class="p-3 bg-mongo-950 border-b border-slate-800 space-y-2">
                         <div class="flex items-center gap-2">
                             <div class="flex-1 bg-mongo-900 border border-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-2 focus-within:border-mongo-500 transition">
@@ -210,7 +231,7 @@
                             </button>
                         </div>
 
-                        <!-- Expanded Query Options (Sort, Project) -->
+                        <!-- Expanded Query Options -->
                         <div id="queryOptionsPanel" class="hidden grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
                             <div class="bg-mongo-900 border border-slate-800 rounded-lg px-3 py-1 flex items-center gap-2">
                                 <span class="text-[10px] font-mono font-bold text-amber-400">PROJECT</span>
@@ -223,7 +244,7 @@
                         </div>
                     </div>
 
-                    <!-- Toolbar Actions & View Mode Toggles -->
+                    <!-- Toolbar Actions -->
                     <div class="px-4 py-2 bg-mongo-900 border-b border-slate-800/80 flex justify-between items-center text-xs">
                         <div class="flex items-center gap-2">
                             <!-- View Switcher -->
@@ -265,7 +286,7 @@
 
                     <!-- Documents Presentation Container -->
                     <div id="documentsContainer" class="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-xs">
-                        <!-- Content rendered dynamically: Tree, JSON, or Table -->
+                        <!-- Content rendered dynamically -->
                     </div>
                 </div>
 
@@ -303,12 +324,10 @@
                     </div>
 
                     <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
-                        <!-- Stages List Builder Left Column -->
                         <div id="aggregationStagesList" class="overflow-y-auto space-y-3 pr-2">
                             <!-- Stages dynamically added here -->
                         </div>
 
-                        <!-- Results Output Right Column -->
                         <div class="bg-mongo-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
                             <div class="p-3 border-b border-slate-800 bg-mongo-900/50 flex justify-between items-center">
                                 <span class="text-xs font-semibold text-slate-300">Resultado da Agregação</span>
@@ -321,7 +340,54 @@
                     </div>
                 </div>
 
+                <!-- 5. MONGO SHELL CLI TAB VIEW -->
+                <div id="tabContent-shell" class="absolute inset-0 flex flex-col bg-[#011627] text-slate-200 font-mono text-xs hidden">
+                    <div class="p-3 bg-mongo-950 border-b border-slate-800 flex justify-between items-center select-none">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-mongo-500"></i>
+                            <span class="font-bold text-white text-xs">MongoDB Interactive Shell (mongosh v2.2.0)</span>
+                        </div>
+                        <div class="flex gap-2 text-xs">
+                            <button onclick="clearTerminalScreen('mainShell')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700">Clear Screen (Ctrl+L)</button>
+                        </div>
+                    </div>
+
+                    <!-- Main Terminal Output Area -->
+                    <div id="mainShellOutput" class="flex-1 p-4 overflow-y-auto space-y-2 cursor-text" onclick="focusShellInput('mainShell')">
+                        <div class="text-slate-400">Current Mongosh Log Session - Type <span class="text-mongo-400 font-bold">help</span> for list of available CLI commands.</div>
+                    </div>
+
+                    <!-- Command Prompt Line -->
+                    <div class="p-3 bg-mongo-950/80 border-t border-slate-800 flex items-center gap-2">
+                        <span id="mainShellPrompt" class="text-mongo-500 font-bold shrink-0">test></span>
+                        <input type="text" id="mainShellInput" autocomplete="off" spellcheck="false" class="flex-1 bg-transparent text-slate-100 font-mono text-xs focus:outline-none" placeholder="db.my_collection.find()">
+                    </div>
+                </div>
+
             </div>
+
+            <!-- BOTTOM FLOATING / DRAWERS MONGO SHELL (Quick Access CLI) -->
+            <div id="bottomTerminalDrawer" class="bg-[#011627] border-t-2 border-mongo-500 flex flex-col transition-all duration-300 h-64 shrink-0 hidden">
+                <div class="px-4 py-2 bg-mongo-950 border-b border-slate-800 flex justify-between items-center select-none">
+                    <div class="flex items-center gap-2 text-xs font-mono">
+                        <i class="fa-solid fa-terminal text-mongo-500"></i>
+                        <span class="font-bold text-slate-200">Mongo Shell CLI Drawer</span>
+                        <span class="text-slate-500 text-[10px]">(Sincronizado com a GUI)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="clearTerminalScreen('drawerShell')" class="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded bg-slate-800"><i class="fa-solid fa-eraser"></i> Clear</button>
+                        <button onclick="toggleBottomTerminal()" class="text-slate-400 hover:text-white text-xs"><i class="fa-solid fa-chevron-down"></i></button>
+                    </div>
+                </div>
+                <div id="drawerShellOutput" class="flex-1 p-3 overflow-y-auto font-mono text-xs space-y-1.5 cursor-text" onclick="focusShellInput('drawerShell')">
+                    <div class="text-slate-500">MongoShell Drawer ready. Active Database: <span class="text-mongo-400 font-bold" id="drawerActiveDbLabel">test</span></div>
+                </div>
+                <div class="px-3 py-2 bg-mongo-950/90 border-t border-slate-800 flex items-center gap-2">
+                    <span id="drawerShellPrompt" class="text-mongo-500 font-bold font-mono text-xs shrink-0">test></span>
+                    <input type="text" id="drawerShellInput" autocomplete="off" spellcheck="false" class="flex-1 bg-transparent text-slate-100 font-mono text-xs focus:outline-none" placeholder="db.collection.find()">
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -464,10 +530,10 @@
 
     <script>
         /* ==========================================================================
-           STATE INITIALIZATION (CLEAN BY DEFAULT)
+           STATE & SHELL INITIALIZATION
            ========================================================================== */
         let dbState = {};
-        let activeDB = null;
+        let activeDB = "test"; // Default Mongo shell active database
         let activeCollection = null;
         let activeViewMode = "tree"; // tree | json | table
         let editingDocId = null;
@@ -477,10 +543,17 @@
         let chartStorageInstance = null;
         let chartDocsInstance = null;
 
+        // Command History State for Terminal
+        const commandHistory = [];
+        let historyIndex = -1;
+
         // Initialize App
         window.onload = function () {
             loadStateFromStorage();
             renderSidebarTree();
+            updateShellPrompts();
+            setupShellInputListeners('mainShell');
+            setupShellInputListeners('drawerShell');
             switchMainTab('dashboard');
             initAggregationStages();
         };
@@ -512,10 +585,11 @@
         function clearAllData() {
             if (confirm("Tem certeza que deseja apagar TODOS os bancos de dados e coleções? Esta ação não pode ser desfeita.")) {
                 dbState = {};
-                activeDB = null;
+                activeDB = "test";
                 activeCollection = null;
                 saveStateToStorage();
                 renderSidebarTree();
+                updateShellPrompts();
                 refreshActiveView();
                 showToast("Todos os bancos foram removidos!", "info");
             }
@@ -532,7 +606,7 @@
                     <div class="p-4 text-center text-slate-500 text-xs space-y-2 my-auto">
                         <i class="fa-solid fa-database text-2xl text-slate-600 mb-1"></i>
                         <p class="font-medium text-slate-400">Nenhum banco encontrado</p>
-                        <p class="text-[11px] text-slate-500">Crie um novo banco de dados para começar.</p>
+                        <p class="text-[11px] text-slate-500">Crie um novo banco via GUI ou digite <code class="text-mongo-400">use meu_banco</code> no Terminal Shell.</p>
                         <button onclick="openCreateDBModal()" class="mt-2 w-full py-1.5 px-2 bg-mongo-600/20 hover:bg-mongo-600/30 text-mongo-400 border border-mongo-500/30 rounded-lg text-xs font-semibold transition">
                             <i class="fa-solid fa-plus mr-1"></i> Criar Banco
                         </button>
@@ -540,8 +614,8 @@
                 `;
                 document.getElementById('sidebarTotalCollections').innerText = '0';
                 document.getElementById('sidebarTotalSize').innerText = '0 KB';
-                document.getElementById('bcDB').innerText = 'Nenhum';
-                document.getElementById('bcColl').innerText = 'Nenhum';
+                document.getElementById('bcDB').innerText = activeDB || "test";
+                document.getElementById('bcColl').innerText = activeCollection || "Nenhum";
                 return;
             }
 
@@ -600,8 +674,9 @@
             document.getElementById('sidebarTotalSize').innerText = (totalEstimatedBytes / 1024).toFixed(1) + " KB";
             
             // Update Header Breadcrumb
-            document.getElementById('bcDB').innerText = activeDB || "Nenhum";
+            document.getElementById('bcDB').innerText = activeDB || "test";
             document.getElementById('bcColl').innerText = activeCollection || "Nenhum";
+            updateShellPrompts();
         }
 
         function selectDatabase(dbName) {
@@ -620,7 +695,7 @@
         }
 
         function switchMainTab(tabName) {
-            ['dashboard', 'documents', 'schema', 'aggregation'].forEach(t => {
+            ['dashboard', 'documents', 'schema', 'aggregation', 'shell'].forEach(t => {
                 const btn = document.getElementById(`tabBtn-${t}`);
                 const content = document.getElementById(`tabContent-${t}`);
                 if (t === tabName) {
@@ -637,10 +712,11 @@
             if (tabName === 'dashboard') refreshDashboard();
             if (tabName === 'documents') executeFindQuery();
             if (tabName === 'schema') renderSchemaAnalysis();
+            if (tabName === 'shell') focusShellInput('mainShell');
         }
 
         function refreshActiveView() {
-            const activeTab = ['dashboard', 'documents', 'schema', 'aggregation'].find(t => !document.getElementById(`tabContent-${t}`).classList.contains('hidden'));
+            const activeTab = ['dashboard', 'documents', 'schema', 'aggregation', 'shell'].find(t => !document.getElementById(`tabContent-${t}`).classList.contains('hidden'));
             if (activeTab) switchMainTab(activeTab);
         }
 
@@ -733,7 +809,7 @@
                     <div class="p-8 text-center text-slate-500 space-y-2">
                         <i class="fa-solid fa-folder-open text-3xl mb-1"></i>
                         <p class="text-sm font-semibold text-slate-400">Nenhuma coleção selecionada</p>
-                        <p class="text-xs text-slate-500">Crie um banco de dados e coleção para visualizar e inserir documentos.</p>
+                        <p class="text-xs text-slate-500">Crie uma coleção ou execute comandos no Shell Terminal.</p>
                         <button onclick="openCreateDBModal()" class="mt-2 px-3 py-1.5 bg-mongo-600 hover:bg-mongo-500 text-mongo-950 font-bold rounded-lg text-xs inline-flex items-center gap-1.5 transition">
                             <i class="fa-solid fa-plus"></i> Criar Banco de Dados
                         </button>
@@ -745,7 +821,7 @@
 
             let docs = [...dbState[activeDB][activeCollection]];
 
-            // 1. Filter Execution
+            // Filter
             const filterStr = document.getElementById('queryFilterInput').value.trim();
             if (filterStr && filterStr !== '{}') {
                 try {
@@ -756,7 +832,7 @@
                 }
             }
 
-            // 2. Sort Execution
+            // Sort
             const sortStr = document.getElementById('querySortInput').value.trim();
             if (sortStr && sortStr !== '{}') {
                 try {
@@ -773,7 +849,7 @@
                 } catch(e) {}
             }
 
-            // 3. Projection Execution
+            // Projection
             const projStr = document.getElementById('queryProjectInput').value.trim();
             if (projStr && projStr !== '{}') {
                 try {
@@ -784,7 +860,7 @@
                     docs = docs.map(doc => {
                         let newDoc = {};
                         if (isInclusive) {
-                            newDoc._id = doc._id; // _id is included by default
+                            newDoc._id = doc._id;
                             keys.forEach(k => { if (projObj[k] === 1) newDoc[k] = doc[k]; });
                         } else {
                             newDoc = { ...doc };
@@ -801,7 +877,6 @@
             renderDocuments();
         }
 
-        // Simple Simulated Mongo Matcher
         function matchesMongoFilter(doc, filter) {
             for (let key in filter) {
                 const condition = filter[key];
@@ -825,11 +900,7 @@
             activeViewMode = mode;
             ['tree', 'json', 'table'].forEach(m => {
                 const btn = document.getElementById(`viewBtn-${m}`);
-                if (m === mode) {
-                    btn.className = "px-2.5 py-1 rounded bg-slate-800 text-slate-100 font-medium";
-                } else {
-                    btn.className = "px-2.5 py-1 rounded text-slate-400 hover:text-slate-200";
-                }
+                btn.className = (m === mode) ? "px-2.5 py-1 rounded bg-slate-800 text-slate-100 font-medium" : "px-2.5 py-1 rounded text-slate-400 hover:text-slate-200";
             });
             renderDocuments();
         }
@@ -850,7 +921,7 @@
                     <div class="p-8 text-center text-slate-500 space-y-3">
                         <i class="fa-solid fa-file-circle-plus text-3xl text-slate-600 mb-1"></i>
                         <p class="text-sm font-medium text-slate-400">Coleção vazia</p>
-                        <p class="text-xs text-slate-500">Insira um novo documento ou importe um arquivo JSON/CSV.</p>
+                        <p class="text-xs text-slate-500">Insira documentos pela GUI ou execute <code class="text-mongo-400">db.${activeCollection||'coll'}.insertOne({...})</code> no Shell.</p>
                         <div class="flex justify-center gap-2 pt-1">
                             <button onclick="openInsertDocumentModal()" class="px-3 py-1.5 bg-mongo-600/20 hover:bg-mongo-600/30 text-mongo-400 border border-mongo-500/30 rounded-lg text-xs font-semibold transition">
                                 <i class="fa-solid fa-plus mr-1"></i> Inserir Documento
@@ -873,7 +944,6 @@
             }
 
             if (activeViewMode === 'table') {
-                // Collect unique keys for headers
                 const allKeys = new Set();
                 pageDocs.forEach(d => Object.keys(d).forEach(k => allKeys.add(k)));
                 const headers = Array.from(allKeys);
@@ -918,7 +988,7 @@
                 return;
             }
 
-            // TREE VIEW DEFAULT
+            // Tree View
             pageDocs.forEach(doc => {
                 const card = document.createElement('div');
                 card.className = "bg-mongo-950 border border-slate-800/90 rounded-xl p-3 space-y-2 hover:border-slate-700 transition";
@@ -943,7 +1013,6 @@
             });
         }
 
-        // Interactive Tree Recursive Generator
         function renderTreeNodes(obj, level = 0) {
             let html = '';
             for (let key in obj) {
@@ -1007,6 +1076,403 @@
             return 'Unknown';
         }
 
+        /* ==========================================================================
+           MONGO SHELL / CLI ENGINE INTERPRETER
+           ========================================================================== */
+        
+        function toggleBottomTerminal() {
+            const drawer = document.getElementById('bottomTerminalDrawer');
+            drawer.classList.toggle('hidden');
+            if (!drawer.classList.contains('hidden')) {
+                focusShellInput('drawerShell');
+            }
+        }
+
+        function updateShellPrompts() {
+            const promptText = `${activeDB || 'test'}>`;
+            document.getElementById('mainShellPrompt').innerText = promptText;
+            document.getElementById('drawerShellPrompt').innerText = promptText;
+            const drawerLabel = document.getElementById('drawerActiveDbLabel');
+            if (drawerLabel) drawerLabel.innerText = activeDB || 'test';
+        }
+
+        function setupShellInputListeners(targetPrefix) {
+            const input = document.getElementById(`${targetPrefix}Input`);
+            if (!input) return;
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    const cmd = this.value.trim();
+                    if (cmd) {
+                        commandHistory.push(cmd);
+                        historyIndex = commandHistory.length;
+                        executeShellCommand(cmd, targetPrefix);
+                        this.value = '';
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    if (historyIndex > 0) {
+                        historyIndex--;
+                        this.value = commandHistory[historyIndex];
+                    }
+                } else if (e.key === 'ArrowDown') {
+                    if (historyIndex < commandHistory.length - 1) {
+                        historyIndex++;
+                        this.value = commandHistory[historyIndex];
+                    } else {
+                        historyIndex = commandHistory.length;
+                        this.value = '';
+                    }
+                } else if (e.ctrlKey && e.key === 'l') {
+                    e.preventDefault();
+                    clearTerminalScreen(targetPrefix);
+                }
+            });
+        }
+
+        function focusShellInput(targetPrefix) {
+            const input = document.getElementById(`${targetPrefix}Input`);
+            if (input) input.focus();
+        }
+
+        function clearTerminalScreen(targetPrefix) {
+            const output = document.getElementById(`${targetPrefix}Output`);
+            if (output) {
+                output.innerHTML = `<div class="text-slate-500">Terminal limpo. Banco ativo: <span class="text-mongo-400 font-bold">${activeDB}</span></div>`;
+            }
+        }
+
+        function writeToTerminal(targetPrefix, text, type = 'output') {
+            const output = document.getElementById(`${targetPrefix}Output`);
+            if (!output) return;
+
+            const line = document.createElement('div');
+            line.className = "font-mono text-xs whitespace-pre-wrap break-words ";
+
+            if (type === 'cmd') {
+                line.className += "text-slate-100 font-bold mt-1";
+                line.innerHTML = `<span class="text-mongo-500">${activeDB}></span> ${escapeHtml(text)}`;
+            } else if (type === 'error') {
+                line.className += "text-rose-400";
+                line.innerText = text;
+            } else if (type === 'info') {
+                line.className += "text-amber-400";
+                line.innerText = text;
+            } else {
+                line.className += "text-emerald-400";
+                line.innerText = text;
+            }
+
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // MONGO COMMAND PARSER & EXECUTOR
+        function executeShellCommand(cmd, targetPrefix) {
+            writeToTerminal(targetPrefix, cmd, 'cmd');
+
+            const lower = cmd.toLowerCase().trim();
+
+            // 1. HELP COMMAND
+            if (lower === 'help') {
+                const helpText = 
+`Comandos Mongo Shell Suportados:
+  show dbs / show databases                  : Lista todos os bancos de dados
+  use <dbName>                              : Alterna para o banco especificado
+  show collections / show tables            : Lista coleções do banco ativo
+  db.createCollection('<name>')            : Cria uma nova coleção no banco
+  db.dropDatabase()                          : Exclui o banco de dados ativo
+  db.<coll>.drop()                          : Exclui uma coleção
+  db.<coll>.find([filter], [proj])          : Busca documentos
+  db.<coll>.findOne([filter])               : Retorna o primeiro documento correspondente
+  db.<coll>.insertOne({ ... })              : Insere um novo documento
+  db.<coll>.insertMany([ { ... } ])         : Insere múltiplos documentos
+  db.<coll>.updateOne({filter}, {$set:{..}}): Atualiza um documento
+  db.<coll>.updateMany({filter}, {$set:{..}}): Atualiza múltiplos documentos
+  db.<coll>.deleteOne({filter})             : Apaga um documento
+  db.<coll>.deleteMany({filter})            : Apaga múltiplos documentos
+  db.<coll>.countDocuments([filter])        : Conta documentos
+  db.<coll>.aggregate([ ... ])              : Executa pipeline de agregação
+  cls / clear                               : Limpa a tela do terminal`;
+                writeToTerminal(targetPrefix, helpText, 'info');
+                return;
+            }
+
+            // 2. CLEAR / CLS
+            if (lower === 'cls' || lower === 'clear') {
+                clearTerminalScreen(targetPrefix);
+                return;
+            }
+
+            // 3. SHOW DBS / SHOW DATABASES
+            if (lower === 'show dbs' || lower === 'show databases') {
+                const dbNames = Object.keys(dbState);
+                if (dbNames.length === 0) {
+                    writeToTerminal(targetPrefix, "Nenhum banco de dados criado.", 'info');
+                } else {
+                    let out = '';
+                    dbNames.forEach(db => {
+                        const sizeKb = (JSON.stringify(dbState[db]).length / 1024).toFixed(2);
+                        out += `${db.padEnd(20, ' ')} ${sizeKb} KiB\n`;
+                    });
+                    writeToTerminal(targetPrefix, out.trim(), 'output');
+                }
+                return;
+            }
+
+            // 4. USE <DB>
+            if (lower.startsWith('use ')) {
+                const newDb = cmd.substring(4).trim();
+                if (!newDb) {
+                    writeToTerminal(targetPrefix, "Sintaxe incorreta. Use: use <dbName>", 'error');
+                    return;
+                }
+                activeDB = newDb;
+                if (!dbState[activeDB]) dbState[activeDB] = {};
+                const colls = Object.keys(dbState[activeDB]);
+                activeCollection = colls.length > 0 ? colls[0] : null;
+
+                renderSidebarTree();
+                updateShellPrompts();
+                refreshActiveView();
+                writeToTerminal(targetPrefix, `switched to db ${activeDB}`, 'info');
+                return;
+            }
+
+            // 5. SHOW COLLECTIONS / SHOW TABLES
+            if (lower === 'show collections' || lower === 'show tables') {
+                if (!dbState[activeDB]) {
+                    writeToTerminal(targetPrefix, `Banco '${activeDB}' vazio.`, 'info');
+                    return;
+                }
+                const colls = Object.keys(dbState[activeDB]);
+                if (colls.length === 0) {
+                    writeToTerminal(targetPrefix, `Nenhuma coleção em '${activeDB}'.`, 'info');
+                } else {
+                    writeToTerminal(targetPrefix, colls.join('\n'), 'output');
+                }
+                return;
+            }
+
+            // 6. DB LEVEL COMMANDS (db.createCollection / db.dropDatabase)
+            if (lower === 'db.dropdatabase()') {
+                delete dbState[activeDB];
+                const dbNames = Object.keys(dbState);
+                activeDB = dbNames.length > 0 ? dbNames[0] : 'test';
+                activeCollection = activeDB && dbState[activeDB] ? (Object.keys(dbState[activeDB])[0] || null) : null;
+                saveStateToStorage();
+                renderSidebarTree();
+                updateShellPrompts();
+                refreshActiveView();
+                writeToTerminal(targetPrefix, `{ "dropped": "${activeDB}", "ok": 1 }`, 'output');
+                return;
+            }
+
+            const createCollMatch = cmd.match(/^db\.createCollection\s*\(\s*['"]([^'"]+)['"]\s*\)$/i);
+            if (createCollMatch) {
+                const newColl = createCollMatch[1];
+                if (!dbState[activeDB]) dbState[activeDB] = {};
+                if (!dbState[activeDB][newColl]) dbState[activeDB][newColl] = [];
+                activeCollection = newColl;
+                saveStateToStorage();
+                renderSidebarTree();
+                refreshActiveView();
+                writeToTerminal(targetPrefix, `{ "ok": 1 }`, 'output');
+                return;
+            }
+
+            // 7. COLLECTION OPERATIONS (db.<coll>.<method>(...))
+            const dbMethodRegex = /^db\.([a-zA-Z0-9_\-]+)\.([a-zA-Z]+)\s*\(([\s\S]*)\)$/;
+            const match = cmd.match(dbMethodRegex);
+
+            if (match) {
+                const collName = match[1];
+                const method = match[2];
+                const argsStr = match[3].trim();
+
+                if (!dbState[activeDB]) dbState[activeDB] = {};
+                if (!dbState[activeDB][collName]) dbState[activeDB][collName] = [];
+                activeCollection = collName;
+
+                const collection = dbState[activeDB][collName];
+
+                try {
+                    // Method: drop()
+                    if (method === 'drop') {
+                        delete dbState[activeDB][collName];
+                        const remaining = Object.keys(dbState[activeDB]);
+                        activeCollection = remaining.length > 0 ? remaining[0] : null;
+                        saveStateToStorage();
+                        renderSidebarTree();
+                        refreshActiveView();
+                        writeToTerminal(targetPrefix, "true", 'output');
+                        return;
+                    }
+
+                    // Method: countDocuments()
+                    if (method === 'countDocuments') {
+                        let count = collection.length;
+                        if (argsStr && argsStr !== '{}') {
+                            const filter = JSON.parse(argsStr);
+                            count = collection.filter(d => matchesMongoFilter(d, filter)).length;
+                        }
+                        writeToTerminal(targetPrefix, String(count), 'output');
+                        return;
+                    }
+
+                    // Method: insertOne({ ... })
+                    if (method === 'insertOne') {
+                        const doc = JSON.parse(argsStr);
+                        if (!doc._id) doc._id = generateObjectId();
+                        collection.unshift(doc);
+                        saveStateToStorage();
+                        renderSidebarTree();
+                        executeFindQuery();
+                        writeToTerminal(targetPrefix, JSON.stringify({ acknowledged: true, insertedId: doc._id }, null, 2), 'output');
+                        return;
+                    }
+
+                    // Method: insertMany([ ... ])
+                    if (method === 'insertMany') {
+                        const docs = JSON.parse(argsStr);
+                        if (!Array.isArray(docs)) throw new Error("Argumento de insertMany deve ser uma Array");
+                        const insertedIds = [];
+                        docs.forEach(d => {
+                            if (!d._id) d._id = generateObjectId();
+                            collection.unshift(d);
+                            insertedIds.push(d._id);
+                        });
+                        saveStateToStorage();
+                        renderSidebarTree();
+                        executeFindQuery();
+                        writeToTerminal(targetPrefix, JSON.stringify({ acknowledged: true, insertedCount: docs.length, insertedIds }, null, 2), 'output');
+                        return;
+                    }
+
+                    // Method: find([query], [proj])
+                    if (method === 'find') {
+                        let results = [...collection];
+                        if (argsStr) {
+                            // Parse query argument if exists
+                            const parts = splitMongoArgs(argsStr);
+                            if (parts[0] && parts[0] !== '{}') {
+                                const filter = JSON.parse(parts[0]);
+                                results = results.filter(d => matchesMongoFilter(d, filter));
+                            }
+                        }
+                        writeToTerminal(targetPrefix, JSON.stringify(results, null, 2), 'output');
+                        return;
+                    }
+
+                    // Method: findOne([query])
+                    if (method === 'findOne') {
+                        let results = [...collection];
+                        if (argsStr && argsStr !== '{}') {
+                            const filter = JSON.parse(argsStr);
+                            results = results.filter(d => matchesMongoFilter(d, filter));
+                        }
+                        const first = results.length > 0 ? results[0] : null;
+                        writeToTerminal(targetPrefix, JSON.stringify(first, null, 2), 'output');
+                        return;
+                    }
+
+                    // Method: updateOne / updateMany ({filter}, {$set: {...}})
+                    if (method === 'updateOne' || method === 'updateMany') {
+                        const parts = splitMongoArgs(argsStr);
+                        if (parts.length < 2) throw new Error(`${method} requer 2 argumentos: (filter, update)`);
+
+                        const filter = JSON.parse(parts[0]);
+                        const updateObj = JSON.parse(parts[1]);
+                        const setObj = updateObj['$set'] || updateObj;
+
+                        let matchedCount = 0;
+                        let modifiedCount = 0;
+
+                        collection.forEach(doc => {
+                            if (matchesMongoFilter(doc, filter)) {
+                                matchedCount++;
+                                if (method === 'updateOne' && modifiedCount >= 1) return;
+                                Object.assign(doc, setObj);
+                                modifiedCount++;
+                            }
+                        });
+
+                        saveStateToStorage();
+                        executeFindQuery();
+                        writeToTerminal(targetPrefix, JSON.stringify({ acknowledged: true, matchedCount, modifiedCount }, null, 2), 'output');
+                        return;
+                    }
+
+                    // Method: deleteOne / deleteMany ({filter})
+                    if (method === 'deleteOne' || method === 'deleteMany') {
+                        const filter = JSON.parse(argsStr || '{}');
+                        let deletedCount = 0;
+
+                        dbState[activeDB][collName] = collection.filter(doc => {
+                            const matches = matchesMongoFilter(doc, filter);
+                            if (matches) {
+                                if (method === 'deleteOne' && deletedCount >= 1) return true;
+                                deletedCount++;
+                                return false;
+                            }
+                            return true;
+                        });
+
+                        saveStateToStorage();
+                        renderSidebarTree();
+                        executeFindQuery();
+                        writeToTerminal(targetPrefix, JSON.stringify({ acknowledged: true, deletedCount }, null, 2), 'output');
+                        return;
+                    }
+
+                    // Method: aggregate([ ... ])
+                    if (method === 'aggregate') {
+                        const pipeline = JSON.parse(argsStr);
+                        if (!Array.isArray(pipeline)) throw new Error("Argumento de aggregate deve ser uma Array de estágios");
+
+                        let result = [...collection];
+                        pipeline.forEach(stg => {
+                            if (stg['$match']) result = result.filter(d => matchesMongoFilter(d, stg['$match']));
+                            if (stg['$limit']) result = result.slice(0, stg['$limit']);
+                        });
+
+                        writeToTerminal(targetPrefix, JSON.stringify(result, null, 2), 'output');
+                        return;
+                    }
+
+                    throw new Error(`Método 'db.${collName}.${method}()' não suportado ou erro de sintaxe.`);
+
+                } catch(err) {
+                    writeToTerminal(targetPrefix, `MongoServerError: ${err.message}`, 'error');
+                }
+                return;
+            }
+
+            // Fallback: Unknown Command
+            writeToTerminal(targetPrefix, `Comando não reconhecido: '${cmd}'. Digite 'help' para ajuda.`, 'error');
+        }
+
+        // Helper to split JSON args inside db.coll.method(arg1, arg2)
+        function splitMongoArgs(str) {
+            const results = [];
+            let depth = 0;
+            let current = '';
+
+            for (let i = 0; i < str.length; i++) {
+                const char = str[i];
+                if (char === '{' || char === '[') depth++;
+                if (char === '}' || char === ']') depth--;
+
+                if (char === ',' && depth === 0) {
+                    results.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            if (current.trim()) results.push(current.trim());
+            return results;
+        }
+
         function openInsertDocumentModal() {
             if (!activeDB || !activeCollection) {
                 showToast("Crie ou selecione um Banco e Coleção primeiro!", "error");
@@ -1052,12 +1518,10 @@
                 const coll = dbState[activeDB][activeCollection];
 
                 if (editingDocId) {
-                    // Update
                     const idx = coll.findIndex(d => d._id === editingDocId);
                     if (idx !== -1) coll[idx] = parsed;
                     showToast("Documento atualizado com sucesso!", "success");
                 } else {
-                    // Insert
                     coll.unshift(parsed);
                     showToast("Documento inserido com sucesso!", "success");
                 }
@@ -1116,7 +1580,6 @@
                 return;
             }
 
-            // Analyze Field Types Frequency
             const fieldStats = {};
             docs.forEach(doc => {
                 Object.keys(doc).forEach(key => {
@@ -1152,7 +1615,7 @@
                 card.innerHTML = `
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2">
-                            <i class="fa-solid fa-[#key] fa-cube text-mongo-500 text-xs"></i>
+                            <i class="fa-solid fa-cube text-mongo-500 text-xs"></i>
                             <span class="font-bold font-mono text-sm text-slate-100">${field}</span>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 font-mono">Presente em ${presencePct}% dos documentos</span>
@@ -1380,10 +1843,11 @@
             if (confirm(`Excluir permanentemente o banco de dados '${dbName}' e TODAS as suas coleções?`)) {
                 delete dbState[dbName];
                 const remaining = Object.keys(dbState);
-                activeDB = remaining.length ? remaining[0] : null;
-                activeCollection = activeDB ? (Object.keys(dbState[activeDB])[0] || null) : null;
+                activeDB = remaining.length ? remaining[0] : 'test';
+                activeCollection = activeDB && dbState[activeDB] ? (Object.keys(dbState[activeDB])[0] || null) : null;
                 saveStateToStorage();
                 renderSidebarTree();
+                updateShellPrompts();
                 refreshActiveView();
                 showToast(`Banco '${dbName}' excluído!`, "info");
             }
